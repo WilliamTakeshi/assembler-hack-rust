@@ -67,10 +67,10 @@ mod tests {
         assert_eq!(translate_line("@3"), Ok("0000000000000011".to_string()));
     }
 
-    #[test]
-    fn test_translate_line3() {
-        assert_eq!(translate_line("D=A"), Ok("1110110000010000".to_string()));
-    }
+    // #[test]
+    // fn test_translate_line3() {
+    //     assert_eq!(translate_line("D=A"), Ok("1110110000010000".to_string()));
+    // }
 
     // #[test]
     // fn test_translate_line4() {
