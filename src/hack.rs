@@ -4,9 +4,9 @@ use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct C_Command {
-    dest: Dest,
-    comp: Comp,
-    jump: Jump,
+    pub dest: Dest,
+    pub comp: Comp,
+    pub jump: Jump,
 }
 
 impl C_Command {
@@ -105,6 +105,7 @@ pub enum Comp {
     Mminus1,
     DplusM,
     DminusM,
+    MinusM,
     MminusD,
     DandM,
     DorM,
@@ -139,6 +140,7 @@ impl FromStr for Comp {
             "M-1" => Ok(Comp::Mminus1),
             "D+M" => Ok(Comp::DplusM),
             "D-M" => Ok(Comp::DminusM),
+            "-M" => Ok(Comp::MinusM),
             "M-D" => Ok(Comp::MminusD),
             "D&M" => Ok(Comp::DandM),
             "D|M" => Ok(Comp::DorM),
