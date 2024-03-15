@@ -1,19 +1,25 @@
-use nom::IResult;
+use crate::hack::C_Command;
 pub use nom::bytes::complete::tag;
-use nom::combinator::{opt};
-use nom::character::complete::{multispace0, alphanumeric0, alphanumeric1};
+use nom::bytes::complete::{take_till, take_while, take_while1};
+use nom::character::complete::{alphanumeric0, alphanumeric1, multispace0};
+use nom::combinator::opt;
+use nom::IResult;
 
-
+mod hack;
 fn main() {
     println!("Hello, world!");
 }
 
-fn translate_line(input: &str) -> Result<String, &str>{
+fn translate_line(input: &str) -> Result<String, &str> {
     println!("input: {}", input);
 
     let foo: IResult<&str, String> = match input.chars().next() {
         Some('@') => translate_a_command(input),
-        _ => translate_c_command(input),
+        _ => {
+            let (_, _c_command) = parse_c_command(input).unwrap();
+            dbg!(_c_command);
+            Ok(("", "001".to_owned()))
+        }
     };
 
     let Ok((_leftover, result)) = foo else {
@@ -23,7 +29,6 @@ fn translate_line(input: &str) -> Result<String, &str>{
     Ok(result)
 }
 
-
 fn translate_a_command(input: &str) -> IResult<&str, String> {
     let (leftover_input, _) = tag("@")(input)?;
 
@@ -32,8 +37,11 @@ fn translate_a_command(input: &str) -> IResult<&str, String> {
     Ok(("", format!("{:016b}", my_int)))
 }
 
+fn translate_c_command(c: C_Command) -> Result<String, String> {
 
-fn translate_c_command(input: &str) -> IResult<&str, String> {
+}
+
+fn parse_c_command(input: &str) -> IResult<&str, C_Command> {
     // C commands have the form
     // dest=comp;jump
     let (input, _) = multispace0(input)?; // ignore leading whitespace
@@ -41,7 +49,8 @@ fn translate_c_command(input: &str) -> IResult<&str, String> {
     let (input, _) = multispace0(input)?; // ignore whitespace
     let (input, _) = opt(tag("="))(input)?;
     let (input, _) = multispace0(input)?; // ignore whitespace
-    let (input, comp) = alphanumeric1(input)?; // comp
+    let (input, comp) =
+        take_while1(|c: char| c.is_ascii_uppercase() || c == '!' || c == '+' || c == '-')(input)?; // comp
     let (input, _) = opt(tag(";"))(input)?;
     let (input, _) = multispace0(input)?;
     let (_, jump) = alphanumeric0(input)?; // Jump (optional)
@@ -50,7 +59,14 @@ fn translate_c_command(input: &str) -> IResult<&str, String> {
     dbg!(comp);
     dbg!(jump);
 
-    Ok(("", format!("{}{}{}", dest, comp, jump)))
+    Ok((
+        "",
+        C_Command::new(
+            dest.parse().unwrap(),
+            comp.parse().unwrap(),
+            jump.parse().unwrap(),
+        ),
+    ))
 }
 
 #[cfg(test)]
@@ -71,6 +87,11 @@ mod tests {
     // fn test_translate_line3() {
     //     assert_eq!(translate_line("D=A"), Ok("1110110000010000".to_string()));
     // }
+
+    #[test]
+    fn test_translate_line4() {
+        assert_eq!(translate_line("D=D+A"), Ok("1110110000010000".to_string()));
+    }
 
     // #[test]
     // fn test_translate_line4() {
