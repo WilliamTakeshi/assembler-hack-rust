@@ -2,6 +2,10 @@
 
 This is a simple assembler designed to translate programs written in the Hack assembly language into Hack binary code. The Hack assembly language is utilized in the context of the "Nand to Tetris" course/book, which teaches the construction of a computer system from the ground up.
 
+## Caution
+
+The project is not finished, only works for simple programs, this is a Work in progress.
+
 ## Usage
 
 To use the assembler, follow these steps:
