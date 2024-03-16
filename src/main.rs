@@ -1,9 +1,10 @@
 use crate::hack::CCommand;
 use hack::{Comp, Dest, Jump};
 pub use nom::bytes::complete::tag;
-use nom::bytes::complete::take_while1;
-use nom::character::complete::{alphanumeric0, multispace0};
+use nom::bytes::complete::take_while;
+use nom::character::complete::alphanumeric0;
 use nom::combinator::opt;
+use nom::sequence::tuple;
 use nom::IResult;
 use std::fs::File;
 use std::io::prelude::*;
@@ -43,6 +44,7 @@ fn main() -> std::io::Result<()> {
 }
 
 fn translate_line(input: &str) -> Result<String, &str> {
+    println!("input: {}", input);
     let foo: IResult<&str, String> = match input.chars().next() {
         Some('@') => translate_a_command(input),
         _ => {
@@ -136,23 +138,43 @@ fn translate_c_command(c: CCommand) -> String {
 fn parse_c_command(input: &str) -> IResult<&str, CCommand> {
     // C commands have the form
     // dest=comp;jump
-    let (input, _) = multispace0(input)?; // ignore leading whitespace
-    let (input, dest) = alphanumeric0(input)?; // dest (optional)
-    let (input, _) = multispace0(input)?; // ignore whitespace
-    let (input, _) = opt(tag("="))(input)?;
-    let (input, _) = multispace0(input)?; // ignore whitespace
-    let (input, comp) =
-        take_while1(|c: char| c.is_ascii_uppercase() || c == '!' || c == '+' || c == '-')(input)?; // comp
-    let (input, _) = opt(tag(";"))(input)?;
-    let (input, _) = multispace0(input)?;
-    let (_, jump) = alphanumeric0(input)?; // Jump (optional)
+    // let (input, dest) = alphanumeric0(input)?; // dest (optional)
+    // let (input, _) = opt(tag("="))(input)?;
+    // let (input, comp) =
+    //     take_while(|c: char| c.is_ascii_uppercase() || c == '!' || c == '+' || c == '-')(input)?; // comp
+    // let (input, _) = opt(tag(";"))(input)?;
+    // let (_, jump) = alphanumeric0(input)?; // Jump (optional)
+
+    let (input, (dest_str, _, comp_str, _, jump_str)) = tuple((
+        alphanumeric0,
+        opt(tag("=")),
+        take_while(|c: char| c.is_ascii_uppercase() || c == '!' || c == '+' || c == '-'),
+        opt(tag(";")),
+        alphanumeric0,
+    ))(input)?;
+
+    dbg!(dest_str);
+    dbg!(comp_str);
+    dbg!(jump_str);
+
+    let comp: Comp = if !comp_str.is_empty() {
+        comp_str.parse().unwrap()
+    } else {
+        dest_str.parse().unwrap()
+    };
+    let dest: Dest = if !comp_str.is_empty() {
+        dest_str.parse().unwrap()
+    } else {
+        comp_str.parse().unwrap()
+    };
+    let jump = jump_str.parse().unwrap();
 
     Ok((
-        "",
+        input,
         CCommand::new(
-            dest.parse().unwrap(),
-            comp.parse().unwrap(),
-            jump.parse().unwrap(),
+            dest,
+            comp,
+            jump,
         ),
     ))
 }
@@ -162,22 +184,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_translate_line1() {
-        assert_eq!(translate_line("@2"), Ok("0000000000000010".to_string()));
-    }
+    fn test_translate_line() {
+        let lines = vec![
+            ("@2", "0000000000000010"),
+            ("@3", "0000000000000011"),
+            ("D=A", "1110110000010000"),
+            ("D=D+A", "1110000010010000"),
+            ("D;JGT", "1110001100000001"),
+            ("0;JMP", "1110101010000111"),
+        ];
 
-    #[test]
-    fn test_translate_line2() {
-        assert_eq!(translate_line("@3"), Ok("0000000000000011".to_string()));
-    }
-
-    #[test]
-    fn test_translate_line3() {
-        assert_eq!(translate_line("D=A"), Ok("1110110000010000".to_string()));
-    }
-
-    #[test]
-    fn test_translate_line4() {
-        assert_eq!(translate_line("D=D+A"), Ok("1110000010010000".to_string()));
+        for line in lines {
+            assert_eq!(translate_line(line.0), Ok(line.1.to_string()));
+        }
     }
 }

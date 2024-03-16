@@ -37,6 +37,7 @@ impl FromStr for Dest {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "" => Ok(Dest::Null),
+            "0" => Ok(Dest::Null),
             "M" => Ok(Dest::M),
             "D" => Ok(Dest::D),
             "DM" => Ok(Dest::DM),
@@ -116,6 +117,7 @@ impl FromStr for Comp {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
+            "" => Ok(Comp::Zero),
             "0" => Ok(Comp::Zero),
             "1" => Ok(Comp::One),
             "-1" => Ok(Comp::MinusOne),
