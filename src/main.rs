@@ -138,17 +138,11 @@ fn translate_c_command(c: CCommand) -> String {
 fn parse_c_command(input: &str) -> IResult<&str, CCommand> {
     // C commands have the form
     // dest=comp;jump
-    // let (input, dest) = alphanumeric0(input)?; // dest (optional)
-    // let (input, _) = opt(tag("="))(input)?;
-    // let (input, comp) =
-    //     take_while(|c: char| c.is_ascii_uppercase() || c == '!' || c == '+' || c == '-')(input)?; // comp
-    // let (input, _) = opt(tag(";"))(input)?;
-    // let (_, jump) = alphanumeric0(input)?; // Jump (optional)
 
     let (input, (dest_str, _, comp_str, _, jump_str)) = tuple((
         alphanumeric0,
         opt(tag("=")),
-        take_while(|c: char| c.is_ascii_uppercase() || c == '!' || c == '+' || c == '-'),
+        take_while(|c: char| c.is_ascii_uppercase() || c.is_numeric() || c == '!' || c == '+' || c == '-'),
         opt(tag(";")),
         alphanumeric0,
     ))(input)?;
