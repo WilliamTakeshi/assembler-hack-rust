@@ -5,11 +5,26 @@ use nom::bytes::complete::take_while1;
 use nom::character::complete::{alphanumeric0, multispace0};
 use nom::combinator::opt;
 use nom::IResult;
+use std::fs::File;
+use std::io::prelude::*;
 // use anyhow::Result;
 
 mod hack;
-fn main() {
-    println!("Hello, world!");
+fn main() -> std::io::Result<()> {
+    let mut file = File::open("./6/add/Add.asm")?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    let mut new_file = File::create("foo.txt")?;
+
+    let _ = contents
+        .lines()
+        .map(|line| line.trim())
+        .filter(|line|  !line.is_empty() && !line.starts_with("//"))
+        .map(|line| translate_line(line))
+        .map(|line| new_file.write_all(format!("{}\n", line.unwrap()).as_bytes()))
+        .collect::<Vec<_>>();
+
+    Ok(())
 }
 
 fn translate_line(input: &str) -> Result<String, &str> {
