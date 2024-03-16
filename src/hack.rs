@@ -3,13 +3,13 @@ use std::str::FromStr;
 
 
 #[derive(Debug)]
-pub struct C_Command {
+pub struct CCommand {
     pub dest: Dest,
     pub comp: Comp,
     pub jump: Jump,
 }
 
-impl C_Command {
+impl CCommand {
     pub fn new(dest: Dest, comp: Comp, jump: Jump) -> Self {
         Self {
             dest,

@@ -1,4 +1,4 @@
-use crate::hack::C_Command;
+use crate::hack::CCommand;
 use hack::{Comp, Dest, Jump};
 pub use nom::bytes::complete::tag;
 use nom::bytes::complete::take_while1;
@@ -8,18 +8,33 @@ use nom::IResult;
 use std::fs::File;
 use std::io::prelude::*;
 // use anyhow::Result;
+use clap::Parser;
 
 mod hack;
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Name of the input file
+    #[arg(short, long)]
+    input: String,
+
+    /// Number of the output file
+    #[arg(short, long)]
+    output: String,
+}
 fn main() -> std::io::Result<()> {
-    let mut file = File::open("./6/add/Add.asm")?;
+    let args = Args::parse();
+
+    let mut file = File::open(args.input)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
-    let mut new_file = File::create("foo.txt")?;
+    let mut new_file = File::create(args.output)?;
 
     let _ = contents
         .lines()
         .map(|line| line.trim())
-        .filter(|line|  !line.is_empty() && !line.starts_with("//"))
+        .filter(|line| !line.is_empty() && !line.starts_with("//"))
         .map(|line| translate_line(line))
         .map(|line| new_file.write_all(format!("{}\n", line.unwrap()).as_bytes()))
         .collect::<Vec<_>>();
@@ -28,8 +43,6 @@ fn main() -> std::io::Result<()> {
 }
 
 fn translate_line(input: &str) -> Result<String, &str> {
-    println!("input: {}", input);
-
     let foo: IResult<&str, String> = match input.chars().next() {
         Some('@') => translate_a_command(input),
         _ => {
@@ -113,14 +126,14 @@ fn translate_jump(jump: Jump) -> String {
     }
 }
 
-fn translate_c_command(c: C_Command) -> String {
+fn translate_c_command(c: CCommand) -> String {
     let jump = translate_jump(c.jump);
     let comp = translate_comp(c.comp);
     let dest = translate_dest(c.dest);
     format!("111{}{}{}", comp, dest, jump)
 }
 
-fn parse_c_command(input: &str) -> IResult<&str, C_Command> {
+fn parse_c_command(input: &str) -> IResult<&str, CCommand> {
     // C commands have the form
     // dest=comp;jump
     let (input, _) = multispace0(input)?; // ignore leading whitespace
@@ -136,7 +149,7 @@ fn parse_c_command(input: &str) -> IResult<&str, C_Command> {
 
     Ok((
         "",
-        C_Command::new(
+        CCommand::new(
             dest.parse().unwrap(),
             comp.parse().unwrap(),
             jump.parse().unwrap(),
@@ -167,9 +180,4 @@ mod tests {
     fn test_translate_line4() {
         assert_eq!(translate_line("D=D+A"), Ok("1110000010010000".to_string()));
     }
-
-    // #[test]
-    // fn test_translate_line4() {
-    //     assert_eq!(translate_line("D=D+A"), Ok("111000010010000".to_string()));
-    // }
 }
