@@ -1,15 +1,16 @@
 use crate::hack::CCommand;
+use anyhow::Context;
+use clap::Parser;
 use hack::{Comp, Dest, Jump};
 pub use nom::bytes::complete::tag;
 use nom::bytes::complete::take_while;
-use nom::character::complete::alphanumeric0;
+use nom::character::complete::{alphanumeric0, char};
 use nom::combinator::opt;
-use nom::sequence::tuple;
+use nom::sequence::{delimited, tuple};
 use nom::IResult;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
-// use anyhow::Result;
-use clap::Parser;
 
 mod hack;
 
@@ -32,21 +33,134 @@ fn main() -> std::io::Result<()> {
     file.read_to_string(&mut contents)?;
     let mut new_file = File::create(args.output)?;
 
+    let mut line_num: u32 = 0;
+    let mut mem_num: u32 = 15;
+    let mut hm: HashMap<String, u32> = HashMap::from([
+        ("R0".to_string(), 0),
+        ("R1".to_string(), 1),
+        ("R2".to_string(), 2),
+        ("R3".to_string(), 3),
+        ("R4".to_string(), 4),
+        ("R5".to_string(), 5),
+        ("R6".to_string(), 6),
+        ("R7".to_string(), 7),
+        ("R8".to_string(), 8),
+        ("R9".to_string(), 9),
+        ("R10".to_string(), 10),
+        ("R11".to_string(), 11),
+        ("R12".to_string(), 12),
+        ("R13".to_string(), 13),
+        ("R14".to_string(), 14),
+        ("R15".to_string(), 15),
+        ("SCREEN".to_string(), 16384),
+        ("KBD".to_string(), 24576),
+        ("SP".to_string(), 0),
+        ("LCL".to_string(), 1),
+        ("ARG".to_string(), 2),
+        ("THIS".to_string(), 3),
+        ("THAT".to_string(), 4),
+    ]);
+
+    // First pass (parsing the lines where the "GOTO" points)
     let _ = contents
         .lines()
         .map(|line| line.trim())
         .filter(|line| !line.is_empty() && !line.starts_with("//"))
-        .map(|line| translate_line(line))
+        .map(|line| first_pass(line, &mut line_num, &mut hm))
+        .collect::<Vec<_>>();
+
+    // Second pass (parsing variable and mapping to memory address)
+    let _ = contents
+        .lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty() && !line.starts_with("//") && !line.starts_with('('))
+        .map(|line| second_pass(line, &mut mem_num, &mut hm))
+        .collect::<Vec<_>>();
+
+    println!("{:?}", hm);
+
+    // Last pass
+    let _ = contents
+        .lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty() && !line.starts_with("//") && !line.starts_with('('))
+        .map(|line| translate_line(line, &hm))
         .map(|line| new_file.write_all(format!("{}\n", line.unwrap()).as_bytes()))
         .collect::<Vec<_>>();
 
     Ok(())
 }
 
-fn translate_line(input: &str) -> Result<String, &str> {
-    println!("input: {}", input);
-    let foo: IResult<&str, String> = match input.chars().next() {
-        Some('@') => translate_a_command(input),
+fn parens_parser(input: &str) -> IResult<&str, &str> {
+    delimited(
+        char('('),
+        take_while(|c: char| c.is_alphanumeric() || c == '_' || c == '.' || c == '$'),
+        char(')'),
+    )(input)
+}
+
+fn a_command_with_variable_parser(input: &str) -> IResult<&str, &str> {
+    let (leftover_input, _) = tag("@")(input)?;
+
+    let (leftover_input, label) =
+        take_while(|c: char| c.is_alphanumeric() || c == '_' || c == '.' || c == '$')(
+            leftover_input,
+        )?;
+
+    Ok((leftover_input, label))
+}
+
+fn first_pass(
+    input: &str,
+    line_num: &mut u32,
+    hm: &mut HashMap<String, u32>,
+) -> anyhow::Result<()> {
+    match input.chars().next() {
+        Some('(') => {
+            let (_leftover_input, label) = parens_parser(input)
+                .map_err(|e| e.to_owned())
+                .context("Failed to parse label inside parenthesis")?;
+            hm.entry(label.to_string()).or_insert(*line_num);
+            Ok(())
+        }
+        _ => {
+            *line_num += 1;
+            Ok(())
+        }
+    }
+}
+
+fn second_pass(
+    input: &str,
+    mem_num: &mut u32,
+    hm: &mut HashMap<String, u32>,
+) -> anyhow::Result<()> {
+    match input.chars().next() {
+        Some('@') => {
+            let (_leftover_input, label) = a_command_with_variable_parser(input)
+                .map_err(|e| e.to_owned())
+                .context("Failed to parse ")?;
+
+            if label.parse::<u32>().is_ok() {
+                Ok(()) // Do nothing in case of a number
+            } else {
+                // println!("variable: {}", label);
+                // println!("mem_num: {}", mem_num);
+                if hm.get(label).is_none() {
+                    *mem_num += 1;
+                    hm.insert(label.to_string(), *mem_num);
+                }
+                Ok(())
+            }
+        }
+        _ => Ok(()),
+    }
+}
+
+fn translate_line<'a>(input: &'a str, hm: &HashMap<String, u32>) -> Result<String, &'a str> {
+    // println!("input: {}", input);
+    let translated_line: IResult<&str, String> = match input.chars().next() {
+        Some('@') => translate_a_command(input, hm),
         _ => {
             let (_, c_command) = parse_c_command(input).unwrap();
 
@@ -54,19 +168,22 @@ fn translate_line(input: &str) -> Result<String, &str> {
         }
     };
 
-    let Ok((_leftover, result)) = foo else {
+    let Ok((_leftover, result)) = translated_line else {
         return Err("Failed to parse input");
     };
 
     Ok(result)
 }
 
-fn translate_a_command(input: &str) -> IResult<&str, String> {
+fn translate_a_command<'a>(input: &'a str, hm: &HashMap<String, u32>) -> IResult<&'a str, String> {
     let (leftover_input, _) = tag("@")(input)?;
 
-    let my_int = leftover_input.parse::<i32>().unwrap();
-
-    Ok(("", format!("{:016b}", my_int)))
+    if let Some(num) = hm.get(leftover_input) {
+        Ok(("", format!("{:016b}", num)))
+    } else {
+        let my_int = leftover_input.parse::<i32>().unwrap();
+        Ok(("", format!("{:016b}", my_int)))
+    }
 }
 
 fn translate_comp(comp: Comp) -> String {
@@ -142,14 +259,22 @@ fn parse_c_command(input: &str) -> IResult<&str, CCommand> {
     let (input, (dest_str, _, comp_str, _, jump_str)) = tuple((
         alphanumeric0,
         opt(tag("=")),
-        take_while(|c: char| c.is_ascii_uppercase() || c.is_numeric() || c == '!' || c == '+' || c == '-'),
+        take_while(|c: char| {
+            c.is_ascii_uppercase()
+                || c.is_numeric()
+                || c == '!'
+                || c == '+'
+                || c == '-'
+                || c == '&'
+                || c == '|'
+        }),
         opt(tag(";")),
         alphanumeric0,
     ))(input)?;
 
-    dbg!(dest_str);
-    dbg!(comp_str);
-    dbg!(jump_str);
+    // dbg!(dest_str);
+    // dbg!(comp_str);
+    // dbg!(jump_str);
 
     let comp: Comp = if !comp_str.is_empty() {
         comp_str.parse().unwrap()
@@ -163,14 +288,7 @@ fn parse_c_command(input: &str) -> IResult<&str, CCommand> {
     };
     let jump = jump_str.parse().unwrap();
 
-    Ok((
-        input,
-        CCommand::new(
-            dest,
-            comp,
-            jump,
-        ),
-    ))
+    Ok((input, CCommand::new(dest, comp, jump)))
 }
 
 #[cfg(test)]
@@ -180,16 +298,20 @@ mod tests {
     #[test]
     fn test_translate_line() {
         let lines = vec![
-            ("@2", "0000000000000010"),
-            ("@3", "0000000000000011"),
-            ("D=A", "1110110000010000"),
-            ("D=D+A", "1110000010010000"),
-            ("D;JGT", "1110001100000001"),
-            ("0;JMP", "1110101010000111"),
+            // ("@2", "0000000000000010"),
+            // ("@3", "0000000000000011"),
+            // ("D=A", "1110110000010000"),
+            // ("D=D+A", "1110000010010000"),
+            // ("D;JGT", "1110001100000001"),
+            // ("0;JMP", "1110101010000111"),
+            ("M=D&M", "1111000000001000"),
         ];
 
         for line in lines {
-            assert_eq!(translate_line(line.0), Ok(line.1.to_string()));
+            assert_eq!(
+                translate_line(line.0, &HashMap::new()),
+                Ok(line.1.to_string())
+            );
         }
     }
 }

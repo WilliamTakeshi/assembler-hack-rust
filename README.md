@@ -4,7 +4,12 @@ This is a simple assembler designed to translate programs written in the Hack as
 
 ## Caution
 
-The project is not finished, only works for simple programs, this is a Work in progress.
+This project serves as a learning exercise and demonstration rather than a production-ready implementation. It is essential to understand that the code in this repository is not idiomatic Rust and may not adhere to best practices commonly found in Rust projects.
+
+Here are some points if you wanna help and improve the codebase:
+
+- **Use of `unwrap()`:** The code may use `unwrap()` liberally to simplify error handling. While convenient for toy projects and prototypes, this approach can lead to panics in real-world applications if an operation fails unexpectedly. In production code, it is advisable to handle errors gracefully using methods like `match`, `if let`, or `Result` and `Option` combinators.
+
 
 ## Usage
 

@@ -41,6 +41,7 @@ impl FromStr for Dest {
             "M" => Ok(Dest::M),
             "D" => Ok(Dest::D),
             "DM" => Ok(Dest::DM),
+            "MD" => Ok(Dest::DM),
             "A" => Ok(Dest::A),
             "AM" => Ok(Dest::AM),
             "AD" => Ok(Dest::AD),
